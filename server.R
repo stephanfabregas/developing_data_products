@@ -79,14 +79,24 @@ pred <- function(x, b, m1, m2, m3) {
     return(b + m1*x + m2*log(x) + m3*(x*log(x)))
 }
 
+# Set up prediction lines for plotting
+pred.fit <- predict(dist.fit, newdata=data.frame(year=c(1:750)))
+pred.low <- pred(1:750, dist.conf[1,1], dist.conf[2,1], dist.conf[3,1], dist.conf[4,1])
+pred.high <- pred(750:1, dist.conf[1,2], dist.conf[2,2], dist.conf[3,2], dist.conf[4,2])
+
+# Addtiional planetary data from http://wikipedia.org
 planets <- data.frame(year=c(686.97, 365.24199, 224.7011, 87.969), dist=c(1.523679, 1.0, 0.723327, 0.387098),
                       size=c(0.533, 1.0, 0.9499, 0.3829), color=c("orange", "#3388ff", "yellow", "purple"))
 
 shinyServer(
     function(input, output) {
+        # User input prediction
+        inp <- reactive({predict(dist.fit, newdata=data.frame(year=input$yr))})
         output$year <- renderPrint({input$yr})
-        output$dist <- renderPrint({predict(dist.fit, newdata=data.frame(year=input$yr))[[1]]})
+        output$dist <- renderPrint({inp()[[1]]})
+        # The big plot
         output$out <- renderPlot({
+            # Set scaling factor for solar inner-planets according to user checkbox
             big <- 0
             if (length(input$showOurs) == 2)
                 big <- 10
@@ -94,22 +104,25 @@ shinyServer(
                 if (length(input$showOurs) == 1)
                     if (input$showOurs == "1")
                         big <- 1
+            # Begin the plotting process
             par(bg="#000000", col.axis="white", col.lab="white", col.main="white", fg="white")
-            plot(predict(dist.fit, newdata=data.frame(year=c(1:750))), type="n", xlim=c(0, 700), ylim=c(0, 1.6),
+            plot(pred.fit, type="n", xlim=c(0, 700), ylim=c(0, 1.6),
             main="Exoplanets", xlab="Length of Year (in Earth days)", ylab="Distance to Star (AU)")
-            polygon(c(1:750, 750:1),
-                    c(pred(1:750, dist.conf[1,1], dist.conf[2,1], dist.conf[3,1], dist.conf[4,1]),
-                      pred(750:1, dist.conf[1,2], dist.conf[2,2], dist.conf[3,2], dist.conf[4,2])),
-                    col="#1f1f1f", border=NA)
-            points(d$year, d$distToStar, cex=d$size, pch=19, col="#aaaaaa44")
-            points(d$year, d$distToStar, cex=d$size, col=d$color)
-            lines(predict(dist.fit, newdata=data.frame(year=c(1:750))), col="white")
-            lines(1:750, pred(1:750, dist.conf[1,1], dist.conf[2,1], dist.conf[3,1], dist.conf[4,1]), lty=2)
-            lines(1:750, pred(1:750, dist.conf[1,2], dist.conf[2,2], dist.conf[3,2], dist.conf[4,2]), lty=2)
+            # Confidence interval shading
+            polygon(c(1:750, 750:1), c(pred.low, pred.high), col="#1f1f1f", border=NA)
+            # Note that exoplanets are colored according to their apparent mag data at major wavelength bands
+            points(d$year, d$distToStar, cex=d$size, pch=19, col=d$color)
+            points(d$year, d$distToStar, cex=d$size, col="#aaaaaa44")
+            # Prediction and c.i. lines and points
+            lines(pred.fit, col="white")
+            lines(1:750, pred.low, lty=2)
+            lines(750:1, pred.high, lty=2)
             points(d$year, d$distToStar, pch=".")
+            # Planets from our inner solor system scaled according to user checkbox options
             points(planets$year, planets$dist, col=as.character(planets$color), cex=planets$size*big, pch=19)
             points(planets$year, planets$dist, cex=planets$size*big, col="#1f1f1f")
-            abline(h=predict(dist.fit, newdata=data.frame(year=input$yr)))
+            # Target showing user input/prediction
+            abline(h=inp())
             abline(v=input$yr)
         })
     })
