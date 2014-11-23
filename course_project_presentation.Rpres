@@ -1,0 +1,111 @@
+<style>
+.section .reveal .state-background {
+  background: #333333;
+}
+
+.section .reveal h1,
+.section .reveal h2,
+.section .reveal p {
+  color: white;
+}
+
+ul, p {
+  color: #333333;
+}
+</style>
+
+Planetary Stellar Distance Estimation
+========================================================
+author: Stephan E. Fabregas
+date: 2014-11-23
+
+The Planetary Stellar Distance Estimation Tool
+========================================================
+- With a dataset of confirmed exoplanets, we can calculate an estimation
+of a planet's stellar distance based on its orbital period (or what we
+more commonly refer to as a year).
+
+- You can explore this relationship using the Planetary Stellar Distance
+Estimation tool at: http://sfabregas.shinyapps.io/developing_data_products
+
+The Kepler Mission
+========================================================
+
+```{r echo=FALSE}
+d <- read.csv("kepler_cp_search_use.csv")
+
+# Use only variables of interest and complete cases
+drop <- c(3, 4, 5, 6, 9, 11, 12, 13, 14, 15, 16, 18, 20, 21, 32, 33, 34, 35, 36, 37)
+d <- d[, -drop]
+d <- d[complete.cases(d),]
+
+# Rename and refactor variables to clean things a bit
+names(d) <- c("name", "system", "temp", "size", "year", "discovery", "distToStar", "age", "mass", "starSize", "effTemp", "gravity", "mag", "gMag", "rMag", "iMag", "zMag")
+d$system <- as.factor(d$system)
+# Convert units to something more useful
+# Show firstTransit as the date of first discovery
+startdate <- as.Date("2009-01-01")
+d$discovery <- startdate + d$discovery
+# Show stellar gravity in m/s2
+d$gravity <- 10^d$gravity / 100
+# Convert mag data to RBGA data
+minmag <- min(d[,14:17])
+maxmag <- max(d[,14:17])
+d$gMag <- (d$gMag-minmag)/(maxmag-minmag) * 16
+d$rMag <- (d$rMag-minmag)/(maxmag-minmag) * 16
+d$iMag <- (d$iMag-minmag)/(maxmag-minmag) * 16
+d$zMag <- (d$zMag-minmag)/(maxmag-minmag) * 16
+rangeMag <- (max(d[,13]) - min(d[,13]))
+d$mag <- (d$mag - min(d[,13]))/(rangeMag) * 16
+d$rr <- round(d$iMag * d$mag)
+d$gg <- round(d$rMag * d$mag)
+d$bb <- round(d$gMag * d$mag)
+d$aa <- round(d$zMag * d$mag)
+d$color <- paste("#", as.character(as.hexmode(d$rr)),
+               as.character(as.hexmode(d$gg)), as.character(as.hexmode(d$bb)),
+               sep="")
+
+# Count planets per system
+countPlanets <- function(x) {
+    return(length(d$system[d$system==x]))
+}
+d$numPlanets <- sapply(d$system, countPlanets)
+```
+
+The Kepler Mission has given humanity its first look at planets
+outside our own solar system.
+
+- Thousands of potential planets have been identified
+- More than `r length(d$name)` planets from over `r length(levels(d$system))` star systems have been confirmed
+- This has all been accomplished within just the last 5-10 years
+- There is still much to learn about the diversity of planets
+
+Discovering Exoplanets
+========================================================
+
+- When a planet passes between us and its star, the observed brightness
+of that star decreases very slightly
+- If we observe this small change and it happens at regular intervals,
+then we may guess that we have found a planet
+- Based on the length of that interval, we can also guess how far away
+that planet is from its star
+
+Using the Tool
+========================================================
+
+- Use this [shinyapps tool](http://sfabregas.shinyapps.io/developing_data_products)
+to explore what we know about hundreds of discovered exoplanets
+- For example - the estimated distance to its star (in AU) for a planet whose year is 600 days long:
+
+```{r echo=FALSE}
+# Predicting distance to planet based on length of year
+dist.fit <- glm(distToStar~year*I(log(year)), data=d)
+dist.conf <- confint(dist.fit)
+```
+
+```{r}
+predict(dist.fit, newdata=data.frame(year=600))[[1]]
+```
+
+- Also compare how these discovered exoplanets compare to familiar planets
+within our solar system - Mercury, Venus, Earth, and Mars
